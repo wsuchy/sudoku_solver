@@ -31,8 +31,8 @@ check x
 
 
 -- l1 = [ ["1", "8", "_", "_","_","9" , "_","2","_"], ["_", "_", "_", "8","_","5" , "_","_","1"], ["9", "5", "_", "4","2","_" , "8","_","_"], ["_", "_", "2", "_","_","_" , "_","_","_"], ["5", "_", "_", "_","_","_" , "_","_","8"], ["_", "_", "_", "_","_","_" , "1","_","_"], ["_", "_", "1", "_","5","4" , "_","3","2"], ["3", "_", "_", "9","_","7" , "_","_","_"], ["_", "4", "_", "3","_","_" , "_","1","6"] ]
---l1 = [["5", "_", "_", "_","_","4" , "_","_","6"], ["_", "_", "7", "_","_","8" , "1","_","_"],  [ "-","9","-", "-","6","-","-","4","-"], ["8", "3", "_", "-","5","_" , "-","_","_"], ["_", "_", "6", "7","_","3" , "9","_","_"], ["_", "_", "_", "_","8","_" , "_","3","2"], ["_", "2", "_", "_","3","_" , "-","7","_"], ["_", "_", "8", "5","-","-" , "2","-","-"], ["6", "_", "_", "4","_","-" , "_","_","3"] ]
-l1 = [["-", "_", "9", "_","7","-" , "_","2","-"], ["3", "_", "-", "_","_","-" , "9","_","7"],  [ "-","1","-", "-","-","-","8","-","-"], ["-", "5", "6", "8","-","_" , "-","_","_"], ["_", "_", "-", "7","_","9" , "-","_","_"], ["_", "_", "_", "_","-","5" , "3","8","-"], ["_", "-", "8", "_","-","_" , "-","5","_"], ["5", "_", "2", "-","-","-" , "-","-","6"], ["-", "6", "_", "4","_","-" , "1","_","-"] ]
+l1 = [["5", "_", "_", "_","_","4" , "_","_","6"], ["_", "_", "7", "_","_","8" , "1","_","_"],  [ "-","9","-", "-","6","-","-","4","-"], ["8", "3", "_", "-","5","_" , "-","_","_"], ["_", "_", "6", "7","_","3" , "9","_","_"], ["_", "_", "_", "_","8","_" , "_","3","2"], ["_", "2", "_", "_","3","_" , "-","7","_"], ["_", "_", "8", "5","-","-" , "2","-","-"], ["6", "_", "_", "4","_","-" , "_","_","3"] ]
+-- l1 = [["-", "_", "9", "_","7","-" , "_","2","-"], ["3", "_", "-", "_","_","-" , "9","_","7"],  [ "-","1","-", "-","-","-","8","-","-"], ["-", "5", "6", "8","-","_" , "-","_","_"], ["_", "_", "-", "7","_","9" , "-","_","_"], ["_", "_", "_", "_","-","5" , "3","8","-"], ["_", "-", "8", "_","-","_" , "-","5","_"], ["5", "_", "2", "-","-","-" , "-","-","6"], ["-", "6", "_", "4","_","-" , "1","_","-"] ]
 --l1 =
 data Field = FieldNum Int
             | FieldPossible (Set.Set Int)
@@ -76,16 +76,18 @@ seqIndexHasDigit s i d =
         FieldNum x -> x == d
         _ -> False
 
-generalRulesIndexes :: Integral a => a -> a -> [a]
-generalRulesIndexes x y =
-   Set.toList $ Set.fromList $ (getIndexesForRow y) ++ (getIndexesForCol x) ++ (getIndexesForQuadrant x y)
+generalRulesIndexes :: Integral a => a -> a -> [[a]]
+generalRulesIndexes x y = [getIndexesForRow y, getIndexesForCol x, getIndexesForQuadrant x y]
 
 checkListForDigit ::  Seq.Seq Field -> [Int] -> Int -> Bool
 checkListForDigit s is d  =
     foldr (\i c -> (seqIndexHasDigit s i d) || c  ) False is == True
+
 -- main sudoku rules
 canHaveDigit s (x, y) d =
-    let found = checkListForDigit s (generalRulesIndexes x y) d
+    let
+    indexes = Set.toList $ Set.fromList $ foldr (++) [] $ generalRulesIndexes x y
+    found = checkListForDigit s indexes d
     in not found
 
 -- check if proposed digit is unique in row, col and quadrant
@@ -98,14 +100,11 @@ propositionUnique s (x,y) d =
                                     (FieldPossible ds) -> Set.notMember d ds && c
                                     _ -> c
         checkListForProposition l = foldr checkOneForProposition True l
-        uniqueInRow = checkListForProposition $ getIndexesForRow y
-        uniqueInCol = checkListForProposition $ getIndexesForCol x
-        uniqueInQdt = checkListForProposition $ getIndexesForQuadrant x y
-    in (uniqueInRow || uniqueInCol || uniqueInQdt )
+    in any id $ map checkListForProposition $ generalRulesIndexes x y
 
 
-fixOneNumberInSequence :: Seq.Seq Field -> (Int,Int)-> Seq.Seq Field
-fixOneNumberInSequence s (x,y) =
+solveOneNumberInSequence :: Seq.Seq Field -> (Int,Int)-> Seq.Seq Field
+solveOneNumberInSequence s (x,y) =
     let i = indexByCoords x y
         normalizeField f
             | Set.null f = error $ "No elements:" ++ show (x,y)
@@ -128,12 +127,12 @@ fixOneNumberInSequence s (x,y) =
         new = fixElement old  s
     in Seq.update i new s
 
-fixAllNumbersInSequence :: Seq.Seq Field -> Seq.Seq Field
-fixAllNumbersInSequence s =
+solveAllNumbersInSequence :: Seq.Seq Field -> Seq.Seq Field
+solveAllNumbersInSequence s =
     let coordinates = [(x,y) | x <- [0..8], y <- [0..8] ]
         fnc cs s = case (cs) of
             [] -> s
-            (c:cs) -> fnc cs $ fixOneNumberInSequence s c
+            (c:cs) -> fnc cs $ solveOneNumberInSequence s c
     in fnc coordinates s
 
 sumAllPosibilites :: Seq.Seq Field -> Int
@@ -146,15 +145,17 @@ sumAllPosibilites s =
 
 
 findSolution s p =
-    if p' == p then s else findSolution (fixAllNumbersInSequence s) p'
+    if p' == p then s else findSolution (solveAllNumbersInSequence s) p'
     where p' = sumAllPosibilites s
 
 
 prettyShow :: Seq.Seq Field -> String
 prettyShow s  =
     let
-    nl i =
-        if rem i 9 == 0 then " | " else " "
+    nl i
+        | rem i 9 == 0 =  " | "
+        | rem i 3 == 0 =  " * "
+        | otherwise = " "
     str i e c = case (e) of
         (FieldNum n) -> nl i ++ show (n) ++ c
         (FieldPossible n) -> nl i ++ "{" ++  (Set.foldr (\x c -> show x ++ "," ++ c)  "" n ) ++ "}" ++ c
