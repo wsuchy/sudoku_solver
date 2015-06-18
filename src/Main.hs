@@ -36,6 +36,7 @@ l1 = [["-", "_", "9", "_","7","-" , "_","2","-"], ["3", "_", "-", "_","_","-" , 
 --l1 =
 data Field = FieldNum Int
             | FieldPossible (Set.Set Int)
+            | FieldEmpty
      deriving (Show)
 
 instance Read Field where
@@ -103,14 +104,15 @@ propositionUnique s (x,y) d =
     in any id $ map checkListForProposition $ generalRulesIndexes x y
 
 
-solveOneNumberInSequence :: Seq.Seq Field -> (Int,Int)-> Seq.Seq Field
+normalizeField :: Set.Set Int -> Field
+normalizeField f
+    | Set.null f = FieldEmpty
+    | Set.size f == 1 = FieldNum $ Set.elemAt 0 f
+    | otherwise =  FieldPossible f
+
+solveOneNumberInSequence ::  Seq.Seq Field -> (Int,Int)-> Either String (Seq.Seq Field)
 solveOneNumberInSequence s (x,y) =
     let i = indexByCoords x y
-        normalizeField f
-            | Set.null f = error $ "No elements:" ++ show (x,y)
-            | Set.size f == 1 = FieldNum $ Set.elemAt 0 f
-            | otherwise =  FieldPossible f
-
         filteredHelper fnc f = Set.filter (\l -> fnc s (x,y) l ) f
 
         orderedCheck f =
@@ -119,21 +121,26 @@ solveOneNumberInSequence s (x,y) =
                 byPropositions = filteredHelper propositionUnique byGeneralRules
             in  if Set.null byPropositions then  byGeneralRules else byPropositions
 
-        fixElement e s =
+        fixElement e =
             case (e) of
                 (FieldPossible f) -> normalizeField  $ orderedCheck f
                 _ -> e
         old = Seq.index s i
-        new = fixElement old  s
-    in Seq.update i new s
+        new = fixElement old
+    in case (new) of
+        (FieldEmpty) -> Left  ("No solution in" ++ show (x,y))
+        _ -> Right (Seq.update i new s)
 
-solveAllNumbersInSequence :: Seq.Seq Field -> Seq.Seq Field
+solveAllNumbersInSequence :: Seq.Seq Field -> Either String (Seq.Seq Field)
 solveAllNumbersInSequence s =
     let coordinates = [(x,y) | x <- [0..8], y <- [0..8] ]
-        fnc cs s = case (cs) of
-            [] -> s
-            (c:cs) -> fnc cs $ solveOneNumberInSequence s c
-    in fnc coordinates s
+        fnc cs s' = case (cs) of
+            [] -> s'
+            (c:cs) ->  case (s') of
+                (Right s'') -> fnc cs $ solveOneNumberInSequence s'' c
+                (Left _) -> s'
+
+    in fnc coordinates (Right s)
 
 sumAllPosibilites :: Seq.Seq Field -> Int
 sumAllPosibilites s =
@@ -143,10 +150,16 @@ sumAllPosibilites s =
          _ -> c
     in Seq.foldrWithIndex sum 0 s
 
-
-findSolution s p =
-    if p' == p then s else findSolution (solveAllNumbersInSequence s) p'
-    where p' = sumAllPosibilites s
+findSolution :: Seq.Seq Field -> Either String (Seq.Seq Field)
+findSolution s =
+    let
+    fnc s' p' =
+        case (s') of
+            (Left _) -> s'
+            (Right s'') -> if sumAllPosibilites s'' /= p'
+                           then  fnc (solveAllNumbersInSequence s'') (sumAllPosibilites s'')
+                           else s'
+    in fnc (Right s) 0
 
 
 
@@ -170,9 +183,16 @@ guessAndChange s n =
         new = FieldNum ( Set.elemAt n $ read i )
     in Seq.update i new s
 
-
-
-
+guessedFindSolution :: Seq.Seq Field -> Either String (Seq.Seq Field)
+guessedFindSolution s =
+    let
+       -- result =
+        fnc s' n = case ( findSolution s') of
+            (Right s'') -> if sumAllPosibilites s'' == 0
+                           then s''
+                           else guessAndChange s'' 0
+            (Left s'') -> guessAndChange s'' (n+1)
+    in fnc s 0
 --fnc result n s = case result of
 --               (Left _) -> return (s)
 --               (Right s') -> return (guessAndChange s' n)
@@ -181,19 +201,6 @@ guessAndChange s n =
 -- guessed x = guessAndChange x n
 -- guessedFindSolution :: Seq.Seq Field -> Int -> Seq.Seq Field
 
---fnc :: (Num a, Monad m) => Either t a -> m a
-fnc x = case x of
-       Left _ ->  (return 0.5) ::  Fractional a => IO(a) -- fnc (guessedFindSolution 1 1)
-       Right x -> (return x)
-
-guessedFindSolution j n =
-        let
-            computed = j / n
-
-        in
-             try (evaluate(computed)) ::  Fractional z => IO (Either SomeException (z))
-
-        -- (try (evaluate(computed)) :: IO (Either SomeException (Seq.Seq Field))) >>= fnc
 
 --        if sumAllPosibilites computed > 0
 --        then
@@ -203,7 +210,7 @@ guessedFindSolution j n =
 
 
 
-prettyShow :: Seq.Seq Field -> String
+-- prettyShow ::  Seq.Seq Field -> String
 prettyShow s  =
     let
     nl i
@@ -214,7 +221,9 @@ prettyShow s  =
         (FieldNum n) -> nl i ++ show (n) ++ c
         (FieldPossible n) -> nl i ++ "{" ++  (Set.foldr (\x c -> show x ++ "," ++ c)  "" n ) ++ "}" ++ c
         -- _ -> nl i ++ "?" ++ c
-    in Seq.foldrWithIndex str "" s
+    in case s of
+        Right s' -> Seq.foldrWithIndex str "" s'
+        Left s' -> s'
 
 
 s = multiListToField l1
