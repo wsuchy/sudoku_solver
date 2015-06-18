@@ -3,7 +3,7 @@ module Main where
 import Control.Applicative
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
-
+import Control.Exception
 main = do
     takeAllLines >> putStrLn "\nOK"
 
@@ -31,8 +31,8 @@ check x
 
 
 -- l1 = [ ["1", "8", "_", "_","_","9" , "_","2","_"], ["_", "_", "_", "8","_","5" , "_","_","1"], ["9", "5", "_", "4","2","_" , "8","_","_"], ["_", "_", "2", "_","_","_" , "_","_","_"], ["5", "_", "_", "_","_","_" , "_","_","8"], ["_", "_", "_", "_","_","_" , "1","_","_"], ["_", "_", "1", "_","5","4" , "_","3","2"], ["3", "_", "_", "9","_","7" , "_","_","_"], ["_", "4", "_", "3","_","_" , "_","1","6"] ]
-l1 = [["5", "_", "_", "_","_","4" , "_","_","6"], ["_", "_", "7", "_","_","8" , "1","_","_"],  [ "-","9","-", "-","6","-","-","4","-"], ["8", "3", "_", "-","5","_" , "-","_","_"], ["_", "_", "6", "7","_","3" , "9","_","_"], ["_", "_", "_", "_","8","_" , "_","3","2"], ["_", "2", "_", "_","3","_" , "-","7","_"], ["_", "_", "8", "5","-","-" , "2","-","-"], ["6", "_", "_", "4","_","-" , "_","_","3"] ]
--- l1 = [["-", "_", "9", "_","7","-" , "_","2","-"], ["3", "_", "-", "_","_","-" , "9","_","7"],  [ "-","1","-", "-","-","-","8","-","-"], ["-", "5", "6", "8","-","_" , "-","_","_"], ["_", "_", "-", "7","_","9" , "-","_","_"], ["_", "_", "_", "_","-","5" , "3","8","-"], ["_", "-", "8", "_","-","_" , "-","5","_"], ["5", "_", "2", "-","-","-" , "-","-","6"], ["-", "6", "_", "4","_","-" , "1","_","-"] ]
+-- l1 = [["5", "_", "_", "_","_","4" , "_","_","6"], ["_", "_", "7", "_","_","8" , "1","_","_"],  [ "-","9","-", "-","6","-","-","4","-"], ["8", "3", "_", "-","5","_" , "-","_","_"], ["_", "_", "6", "7","_","3" , "9","_","_"], ["_", "_", "_", "_","8","_" , "_","3","2"], ["_", "2", "_", "_","3","_" , "-","7","_"], ["_", "_", "8", "5","-","-" , "2","-","-"], ["6", "_", "_", "4","_","-" , "_","_","3"] ]
+l1 = [["-", "_", "9", "_","7","-" , "_","2","-"], ["3", "_", "-", "_","_","-" , "9","_","7"],  [ "-","1","-", "-","-","-","8","-","-"], ["-", "5", "6", "8","-","_" , "-","_","_"], ["_", "_", "-", "7","_","9" , "-","_","_"], ["_", "_", "_", "_","-","5" , "3","8","-"], ["_", "-", "8", "_","-","_" , "-","5","_"], ["5", "_", "2", "-","-","-" , "-","-","6"], ["-", "6", "_", "4","_","-" , "1","_","-"] ]
 --l1 =
 data Field = FieldNum Int
             | FieldPossible (Set.Set Int)
@@ -110,14 +110,14 @@ solveOneNumberInSequence s (x,y) =
             | Set.null f = error $ "No elements:" ++ show (x,y)
             | Set.size f == 1 = FieldNum $ Set.elemAt 0 f
             | otherwise =  FieldPossible f
-              --  if Set.size f == 1 then FieldNum $ Set.elemAt 0 f else FieldPossible f
-        byGeneralRules f = Set.filter (\l -> canHaveDigit s (x,y) l ) f
-        byPropositions f = Set.filter (\l -> propositionUnique s (x,y) l ) f
+
+        filteredHelper fnc f = Set.filter (\l -> fnc s (x,y) l ) f
 
         orderedCheck f =
-            let new = byGeneralRules f
-                p = byPropositions new
-            in  if Set.null p then  new else p
+            let
+                byGeneralRules = filteredHelper canHaveDigit f
+                byPropositions = filteredHelper propositionUnique byGeneralRules
+            in  if Set.null byPropositions then  byGeneralRules else byPropositions
 
         fixElement e s =
             case (e) of
@@ -147,6 +147,60 @@ sumAllPosibilites s =
 findSolution s p =
     if p' == p then s else findSolution (solveAllNumbersInSequence s) p'
     where p' = sumAllPosibilites s
+
+
+
+findSmallestToGuess s =
+    let
+        checkSeqElement num e = case e of
+            (FieldPossible f) -> Set.size f == num
+            otherwise -> False
+        helper num = case (Seq.findIndexL (checkSeqElement num) s) of
+                            Just i -> i
+                            Nothing -> helper num + 1
+    in helper 2
+
+guessAndChange s n =
+    let
+        i = findSmallestToGuess s
+        read i = case (Seq.index s i) of
+                FieldPossible f -> f
+                _ -> error "Shouldnt happend"
+
+        new = FieldNum ( Set.elemAt n $ read i )
+    in Seq.update i new s
+
+
+
+
+--fnc result n s = case result of
+--               (Left _) -> return (s)
+--               (Right s') -> return (guessAndChange s' n)
+
+-- computed = (findSolution s 0)
+-- guessed x = guessAndChange x n
+-- guessedFindSolution :: Seq.Seq Field -> Int -> Seq.Seq Field
+
+--fnc :: (Num a, Monad m) => Either t a -> m a
+fnc x = case x of
+       Left _ ->  (return 0.5) ::  Fractional a => IO(a) -- fnc (guessedFindSolution 1 1)
+       Right x -> (return x)
+
+guessedFindSolution j n =
+        let
+            computed = j / n
+
+        in
+             try (evaluate(computed)) ::  Fractional z => IO (Either SomeException (z))
+
+        -- (try (evaluate(computed)) :: IO (Either SomeException (Seq.Seq Field))) >>= fnc
+
+--        if sumAllPosibilites computed > 0
+--        then
+--            guessedFindSolution guessed (n + 1)
+--        else
+--            computed
+
 
 
 prettyShow :: Seq.Seq Field -> String
