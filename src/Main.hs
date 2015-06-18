@@ -190,8 +190,8 @@ guessedFindSolution s =
         fnc s' n = case ( findSolution s') of
             (Right s'') -> if sumAllPosibilites s'' == 0
                            then s''
-                           else guessAndChange s'' 0
-            (Left s'') -> guessAndChange s'' (n+1)
+                           else fnc (guessAndChange s'' n) 0
+            (Left s'') -> fnc (guessAndChange s'' n) 0
     in fnc s 0
 --fnc result n s = case result of
 --               (Left _) -> return (s)
