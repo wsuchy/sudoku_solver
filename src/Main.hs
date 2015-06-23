@@ -150,7 +150,7 @@ sumAllPosibilites s =
          _ -> c
     in Seq.foldrWithIndex sum 0 s
 
-findSolution :: Seq.Seq Field -> Either String (Seq.Seq Field)
+findSolution ::Either String (Seq.Seq Field) -> Either String (Seq.Seq Field)
 findSolution s =
     let
     fnc s' p' =
@@ -159,7 +159,7 @@ findSolution s =
             (Right s'') -> if sumAllPosibilites s'' /= p'
                            then  fnc (solveAllNumbersInSequence s'') (sumAllPosibilites s'')
                            else s'
-    in fnc (Right s) 0
+    in fnc s 0
 
 
 
@@ -180,33 +180,30 @@ guessAndChange s n =
                 FieldPossible f -> f
                 _ -> error "Shouldnt happend"
 
-        new = FieldNum ( Set.elemAt n $ read i )
-    in Seq.update i new s
+        old = read i
+        upd x = Seq.update i x s
 
-guessedFindSolution :: Seq.Seq Field -> Either String (Seq.Seq Field)
-guessedFindSolution s =
-    let
-       -- result =
-        fnc s' n = case ( findSolution s') of
-            (Right s'') -> if sumAllPosibilites s'' == 0
-                           then s''
-                           else fnc (guessAndChange s'' n) 0
-            (Left s'') -> fnc (guessAndChange s'' n) 0
-    in fnc s 0
---fnc result n s = case result of
---               (Left _) -> return (s)
---               (Right s') -> return (guessAndChange s' n)
-
--- computed = (findSolution s 0)
--- guessed x = guessAndChange x n
--- guessedFindSolution :: Seq.Seq Field -> Int -> Seq.Seq Field
+    in
+         if n >= Set.size old
+          then Left ("No options left: " ++ (show i) ++ " try:" ++ (show n))
+          else Right ( upd $ FieldNum ( Set.elemAt n old))
 
 
---        if sumAllPosibilites computed > 0
---        then
---            guessedFindSolution guessed (n + 1)
---        else
---            computed
+fnc1 s n =
+    let s1 = case s of
+                Right s' -> guessAndChange s' n
+                Left _ -> s
+    in case s1 of
+        Right s' -> case findSolution s1 of
+                    Left s2 -> fnc1 s (n + 1)
+                    Right s2 -> if  sumAllPosibilites s2 == 0
+                                then Right s2
+                                else case (fnc1 (Right s2) 0) of
+                                        Left s3 -> fnc1 s (n + 1)
+                                        Right s3 -> Right s3
+
+        Left s' -> s1
+
 
 
 
