@@ -131,8 +131,8 @@ solveOneNumberInSequence s (x,y) =
         (FieldEmpty) -> Left  ("No solution in" ++ show (x,y))
         _ -> Right (Seq.update i new s)
 
-solveAllNumbersInSequence :: Seq.Seq Field -> Either String (Seq.Seq Field)
-solveAllNumbersInSequence s =
+solveOneIteration :: Seq.Seq Field -> Either String (Seq.Seq Field)
+solveOneIteration s =
     let coordinates = [(x,y) | x <- [0..8], y <- [0..8] ]
         fnc cs s' = case (cs) of
             [] -> s'
@@ -150,19 +150,18 @@ sumAllPosibilites s =
          _ -> c
     in Seq.foldrWithIndex sum 0 s
 
-findSolution ::Either String (Seq.Seq Field) -> Either String (Seq.Seq Field)
-findSolution s =
-    let
-    fnc s' p' =
-        case (s') of
-            (Left _) -> s'
-            (Right s'') -> if sumAllPosibilites s'' /= p'
-                           then  fnc (solveAllNumbersInSequence s'') (sumAllPosibilites s'')
-                           else s'
-    in fnc s 0
+doIterationsRec ::  Either String (Seq.Seq Field) -> Int -> Either String (Seq.Seq Field)
+doIterationsRec s p =
+    case (s) of
+        (Left _) -> s
+        (Right s') -> if sumAllPosibilites s' /= p
+                       then  doIterationsRec (solveOneIteration s') (sumAllPosibilites s')
+                       else s
 
+doIterations :: Seq.Seq Field -> Either String (Seq.Seq Field)
+doIterations s = doIterationsRec (Right s) 0
 
-
+findSmallestToGuess :: Seq.Seq Field -> Int
 findSmallestToGuess s =
     let
         checkSeqElement num e = case e of
@@ -173,6 +172,7 @@ findSmallestToGuess s =
                             Nothing -> helper num + 1
     in helper 2
 
+guessAndChange :: Seq.Seq Field -> Int -> Either String (Seq.Seq Field)
 guessAndChange s n =
     let
         i = findSmallestToGuess s
@@ -189,23 +189,29 @@ guessAndChange s n =
           else Right ( upd $ FieldNum ( Set.elemAt n old))
 
 
-fnc1 s n =
+solveWithGuessing s n =
     let s1 = case s of
                 Right s' -> guessAndChange s' n
                 Left _ -> s
     in case s1 of
-        Right s' -> case findSolution s1 of
-                    Left s2 -> fnc1 s (n + 1)
+        Right s' -> case doIterations s' of
+                    Left s2 -> solveWithGuessing s (n + 1)
                     Right s2 -> if  sumAllPosibilites s2 == 0
                                 then Right s2
-                                else case (fnc1 (Right s2) 0) of
-                                        Left s3 -> fnc1 s (n + 1)
+                                else case (solveWithGuessing (Right s2) 0) of
+                                        Left s3 -> solveWithGuessing s (n + 1)
                                         Right s3 -> Right s3
 
         Left s' -> s1
 
 
-
+solve s =
+    let result = doIterations s
+    in case result of
+        Left _ -> result
+        Right s' ->  if  sumAllPosibilites s' == 0
+                     then result
+                     else solveWithGuessing result 0
 
 -- prettyShow ::  Seq.Seq Field -> String
 prettyShow s  =
