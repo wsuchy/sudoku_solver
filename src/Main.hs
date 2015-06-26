@@ -5,7 +5,7 @@ import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import Control.Exception
 main = do
-    takeAllLines >> putStrLn "\nOK"
+     takeAllLines >>= (\x->putStr $ prettyShow $ solve $ multiListToField x)
 
 takeAllLines :: IO [[String]]
 takeAllLines = sequence ( take 9 $ repeat takeOneLine)
@@ -19,21 +19,15 @@ takeOneLine = do
 takeOneChar:: IO (String)
 takeOneChar = do
      z <- liftA check getChar
-     putStr z
-     return (z)
+     putStr ( '\b' : z : [])
+     return (z:[])
 
-check :: Char -> String
+check :: Char -> Char
 check x
-    | x > '9' = "\x08_"
-    | x < '0' = "\x08_"
-    | otherwise  = '\x08' : x : []
+    | x > '9' = '_'
+    | x < '0' = '_'
+    | otherwise  =  x
 
-
-
--- l1 = [ ["1", "8", "_", "_","_","9" , "_","2","_"], ["_", "_", "_", "8","_","5" , "_","_","1"], ["9", "5", "_", "4","2","_" , "8","_","_"], ["_", "_", "2", "_","_","_" , "_","_","_"], ["5", "_", "_", "_","_","_" , "_","_","8"], ["_", "_", "_", "_","_","_" , "1","_","_"], ["_", "_", "1", "_","5","4" , "_","3","2"], ["3", "_", "_", "9","_","7" , "_","_","_"], ["_", "4", "_", "3","_","_" , "_","1","6"] ]
--- l1 = [["5", "_", "_", "_","_","4" , "_","_","6"], ["_", "_", "7", "_","_","8" , "1","_","_"],  [ "-","9","-", "-","6","-","-","4","-"], ["8", "3", "_", "-","5","_" , "-","_","_"], ["_", "_", "6", "7","_","3" , "9","_","_"], ["_", "_", "_", "_","8","_" , "_","3","2"], ["_", "2", "_", "_","3","_" , "-","7","_"], ["_", "_", "8", "5","-","-" , "2","-","-"], ["6", "_", "_", "4","_","-" , "_","_","3"] ]
-l1 = [["-", "_", "9", "_","7","-" , "_","2","-"], ["3", "_", "-", "_","_","-" , "9","_","7"],  [ "-","1","-", "-","-","-","8","-","-"], ["-", "5", "6", "8","-","_" , "-","_","_"], ["_", "_", "-", "7","_","9" , "-","_","_"], ["_", "_", "_", "_","-","5" , "3","8","-"], ["_", "-", "8", "_","-","_" , "-","5","_"], ["5", "_", "2", "-","-","-" , "-","-","6"], ["-", "6", "_", "4","_","-" , "1","_","-"] ]
---l1 =
 data Field = FieldNum Int
             | FieldPossible (Set.Set Int)
             | FieldEmpty
@@ -204,7 +198,7 @@ solveWithGuessing s n =
 
         Left s' -> s1
 
-
+solve ::  Seq.Seq Field -> Either String (Seq.Seq Field)
 solve s =
     let result = doIterations s
     in case result of
@@ -213,20 +207,16 @@ solve s =
                      then result
                      else solveWithGuessing result 0
 
--- prettyShow ::  Seq.Seq Field -> String
+prettyShow :: Either String (Seq.Seq Field) -> String
 prettyShow s  =
     let
     nl i
-        | rem i 9 == 0 =  " | "
+        | rem i 9 == 0 =  " \n "
         | rem i 3 == 0 =  " * "
         | otherwise = " "
     str i e c = case (e) of
         (FieldNum n) -> nl i ++ show (n) ++ c
         (FieldPossible n) -> nl i ++ "{" ++  (Set.foldr (\x c -> show x ++ "," ++ c)  "" n ) ++ "}" ++ c
-        -- _ -> nl i ++ "?" ++ c
     in case s of
-        Right s' -> Seq.foldrWithIndex str "" s'
+        Right s' -> Seq.foldrWithIndex str "" s' ++ "\n"
         Left s' -> s'
-
-
-s = multiListToField l1
