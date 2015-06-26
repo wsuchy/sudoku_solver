@@ -5,7 +5,8 @@ import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import Control.Exception
 main = do
-     takeAllLines >>= (\x->putStr $ prettyShow $ solve $ multiListToField x)
+    lines <- takeAllLines
+    putStr $ prettyShow $ solve $ multiListToField lines
 
 takeAllLines :: IO [[String]]
 takeAllLines = sequence ( take 9 $ repeat takeOneLine)
